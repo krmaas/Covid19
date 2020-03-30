@@ -66,15 +66,22 @@ Both the cases and deaths data seem to match row by row, however I want to join 
 
 ```{r mergeCasesDeaths, warning = FALSE}
 cases$join <- paste(cases$Province.State, cases$Country.Region ,cases$Lat, cases$Long, cases$date)
+
 deaths$join <- paste(deaths$Province.State, deaths$Country.Region,deaths$Lat, deaths$Long, deaths$date)
+
 tibble(cases)
+
 tibble(deaths)
+
 covid19 <- cases %>%
   select(join, confirmedCases) %>%
   left_join( deaths, by = "join") %>%
   select(Province.State, Country.Region, Lat, Long, date, confirmedCases, deaths)
+
 # R thinks of dates as chr, let's specify they are dates
+
 covid19$date <- as.Date(covid19$date, format = "%m.%d.%y")
+
 ```
 ### Time to expore the data
 
@@ -92,6 +99,25 @@ ggplot(data=covid19)+
 #### add in population data from gapminder
 ```{r addGapMinder}
 data(gapminder)
+
+
+covid19 <- left_join(covid19, gapminder[gapminder$year=="2007",], by = c("Country.Region" = "country"))
+
+todayscovid19 <- covid19 %>%
+    filter(date==max(date)) %>%
+    group_by(continent, Country.Region, pop)%>%
+    summarise(confirmedCases = sum(confirmedCases),
+              deaths = sum(deaths))
+
+ggplot(todayscovid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, color=continent))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Set1")+
+    geom_text(data=subset(todayscovid19, confirmedCases*100000/pop > 150), 
+              aes(x=confirmedCases*100000/pop, y=deaths*100000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
+    labs(x="Cases per 100,000", y="Deaths per 100,000")+
+    geom_point(data=subset(todayscovid19, Country.Region == "US"))
+ggsave(file=paste0("PerCapitaCasesDeaths", format(Sys.Date(), "%B%d"), ".jpg"))
 
 
 
@@ -157,8 +183,6 @@ usPop <- left_join(usPop, usAbb, by=c("NAME" = "State"))
 
 # Puerto Rico isn't listed correctly, just going to fix manually
 
-usPop %>%
-    mutate()
 usPop[usPop$NAME == "Puerto Rico Commonwealth "]$Abbreviation <- "PR"
 usDaily
 
@@ -169,19 +193,35 @@ Calculate the positive rate which is important for determining how prevelant cas
 ```{r covidProjectPosRate, warning = FALSE}
 usDaily$posRate <- usDaily$positive/usDaily$total
 
+usDailyAll <- left_join(usDaily, usPop, by=c("state" = "Abbreviation")) %>%
+    mutate(posTotalPerCap = (positive*100000)/POPESTIMATE2019,
+           negTotalPerCap = (negative*100000)/POPESTIMATE2019,
+           hospTotalPerCap = (hospitalized*100000)/POPESTIMATE2019,
+           deathTotalPerCap = (death*100000)/POPESTIMATE2019,
+           totalTotalPerCap = (total*100000)/POPESTIMATE2019,
+        deathPerCap = (deathIncrease*100000)/POPESTIMATE2019,
+           hospitalizedPerCap = (hospitalizedIncrease*100000)/POPESTIMATE2019,
+           positivePerCap = (positiveIncrease*100000)/POPESTIMATE2019,
+            testsPerCap = (totalTestResultsIncrease*100000)/POPESTIMATE2019)
+
+
 ```
 
 We'll tidy the Covid Project data so we can plot it .
 
 ```{r covidProjectTidy, warning = FALSE}
-usDailyIncrease <- usDaily %>%
+
+usDailyIncrease <- usDailyAll %>%
   select(c(date, state, deathIncrease, hospitalizedIncrease, negativeIncrease, positiveIncrease, totalTestResultsIncrease))
 
 
-usDaily <- usDaily %>%
+usDaily <- usDailyAll %>%
   select(c(date, state, positive, negative, hospitalized, death, posRate, total))
+
 usDailyLong <- pivot_longer(usDaily, -c(date, state), names_to = "testType", values_to = "count")
+
 # Again, I could do this filtering before each plot or I can make a separate object. I'm the new opject kind of R person.
+
 usDailyLongNoTotal <- usDailyLong %>%
   filter(testType %in% c("negative", "pending", "positive", "hospitalized", "death")) 
 
@@ -227,6 +267,13 @@ ggplot(usDaily, aes(x=date, y=posRate))+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Positive test rate by state")
+
+ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
+  geom_line()+
+  facet_wrap(~state)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Positive test per 100,000 by state")
 ```
 
 Such wildly different positive rates are likley due to testing intensity. To make this more informative, I should divide # tests by state population. But that's a task for another day.
@@ -239,6 +286,14 @@ ggplot(usDaily, aes(x=date, y=total))+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Tests administered by state")
+
+ggplot(usDailyAll, aes(x=date, y=totalTotalPerCap))+
+  geom_line()+
+  facet_wrap(~state)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Total test per 100,000 by state")
+
 ```
 
 #### Plotting the increases
@@ -272,6 +327,30 @@ ggplot(usDailyIncrease)+
   ggtitle("Daily increase in tests")
 ```
 
+
+```{r increasesPop}
+usIncPop <- left_join(usDailyIncrease, usPop, by=c("state" = "Abbreviation")) %>%
+    mutate(deathPerCap = (deathIncrease*100000)/POPESTIMATE2019,
+           hospitalizedPerCap = (hospitalizedIncrease*100000)/POPESTIMATE2019,
+           positivePerCap = (positiveIncrease*100000)/POPESTIMATE2019,
+            testsPerCap = (totalTestResultsIncrease*100000)/POPESTIMATE2019)
+
+ggplot(usIncPop, aes(x=date, y=positivePerCap))+
+  geom_line()+
+  facet_wrap(~state)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Positive test per 100,000 by state")
+
+ggplot(usIncPop, aes(x=date, y=testsPerCap))+
+  geom_line()+
+  facet_wrap(~state)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Tests per 100,000 by state")
+
+
+```
 
 
 ###Bringing it home. How is CT doing?

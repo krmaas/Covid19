@@ -7,6 +7,7 @@ output:
     toc: true
     toc_depth: 3
     toc_float: true
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 ---
 
 ## Set up session
@@ -14,6 +15,8 @@ Public data on the spread of coronavirus has been compiled by Johns Hopkins CSSE
 
 First, I need to set up my R session by installing and loading packages.
 ```{r setup, message=FALSE, warning = FALSE}
+
+
 # install.packages("ggplot2")
 # install.packages("tidyverse") 
 ## get population data from CRAN packages
@@ -97,7 +100,7 @@ ggplot(data=covid19)+
 ```
 
 #### add in population data from gapminder
-```{r addGapMinder}
+```{r addGapMinder, warning = FALSE}
 data(gapminder)
 
 
@@ -143,7 +146,9 @@ usCanada <- covid19 %>%
 Write this daily data to a csv for Kid1 to open and paste into excel because he isn't interested in learning R yet.
 
 ```{r USCanadaCSV, warning = FALSE}
-write.csv(usCanada, file="../../Shared/usCanadaDaily.csv")
+write.csv(usCanada, file=paste0("usCanadaDaily", format(Sys.Date(),"%B%d"),".csv"))
+
+
 ```
 
 I can't help but make a graph for him as well, because seeing data is fundimental to understanding the numbers
@@ -184,7 +189,7 @@ usPop <- left_join(usPop, usAbb, by=c("NAME" = "State"))
 # Puerto Rico isn't listed correctly, just going to fix manually
 
 usPop[usPop$NAME == "Puerto Rico Commonwealth "]$Abbreviation <- "PR"
-usDaily
+
 
 ```
 #### Positive  and per capita rate
@@ -260,7 +265,7 @@ ggplot()+
 
 Testing is very patchy by state, so lets look at the positive rate through time for each state
 
-```{r covidProjectPosState, warning = FALSE}
+```{r covidProjectPosState, warning = FALSE, fig.height=15, fig.width=10}
 ggplot(usDaily, aes(x=date, y=posRate))+
   geom_line()+
   facet_wrap(~state)+
@@ -278,7 +283,7 @@ ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
 
 Such wildly different positive rates are likley due to testing intensity. To make this more informative, I should divide # tests by state population. But that's a task for another day.
 
-```{r covidProjectTestingState, warning = FALSE}
+```{r covidProjectTestingState, warning = FALSE, fig.height=15, fig.width=10}
 ggplot(usDaily, aes(x=date, y=total))+
   geom_line()+
   facet_wrap(~state)+
@@ -298,7 +303,7 @@ ggplot(usDailyAll, aes(x=date, y=totalTotalPerCap))+
 
 #### Plotting the increases
 
-```{r increases}
+```{r increases, warning = FALSE}
 usDailyIncreaselong<- usDailyIncrease%>%
   pivot_longer(-c(date, state), names_to = "testType", values_to = "count")%>%
   filter(testType %in% c("deathIncrease", "positiveIncrease", "hospitalizedIncrease"))
@@ -319,16 +324,18 @@ ggplot(data=usTotalsIncrease, aes(x=date, y=negativeIn))+
   geom_line()+
   theme_bw()+
   ggtitle("Daily increase in negative tests, not cumulative")
+
+```
+
+
+```{r increasesPop, warning = FALSE, fig.height=15, fig.width=10}
 ggplot(usDailyIncrease)+
   geom_point(aes(x=date, y=totalTestResultsIncrease))+
   facet_wrap(~state)+
   theme_bw()+
   # scale_y_log10()+
   ggtitle("Daily increase in tests")
-```
 
-
-```{r increasesPop}
 usIncPop <- left_join(usDailyIncrease, usPop, by=c("state" = "Abbreviation")) %>%
     mutate(deathPerCap = (deathIncrease*100000)/POPESTIMATE2019,
            hospitalizedPerCap = (hospitalizedIncrease*100000)/POPESTIMATE2019,

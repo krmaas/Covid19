@@ -85,6 +85,10 @@ covid19 <- cases %>%
 
 covid19$date <- as.Date(covid19$date, format = "%m.%d.%y")
 
+# the US is just "US" going to fix so it will join with gapminder data and South Korea is "Korea, South"	
+
+covid19$Country.Region <- recode(covid19$Country.Region, "US" = "United States", "Korea, South"=  "Korea, Rep." )
+
 ```
 ### Time to expore the data
 
@@ -101,10 +105,10 @@ ggplot(data=covid19)+
 
 #### add in population data from gapminder
 ```{r addGapMinder, warning = FALSE}
-data(gapminder)
+data("gapminder_unfiltered")
 
 
-covid19 <- left_join(covid19, gapminder[gapminder$year=="2007",], by = c("Country.Region" = "country"))
+covid19 <- left_join(covid19, gapminder_unfiltered[gapminder_unfiltered$year=="2007",], by = c("Country.Region" = "country"))
 
 todayscovid19 <- covid19 %>%
     filter(date==max(date)) %>%
@@ -119,7 +123,8 @@ ggplot(todayscovid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, colo
     geom_text(data=subset(todayscovid19, confirmedCases*100000/pop > 150), 
               aes(x=confirmedCases*100000/pop, y=deaths*100000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
     labs(x="Cases per 100,000", y="Deaths per 100,000")+
-    geom_point(data=subset(todayscovid19, Country.Region == "US"))
+    geom_text(data=subset(todayscovid19, Country.Region == "United States"), 
+               aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")
 ggsave(file=paste0("PerCapitaCasesDeaths", format(Sys.Date(), "%B%d"), ".jpg"))
 
 
@@ -135,7 +140,7 @@ I started working on this becasue Kid1 wanted the numbers for the US and Canada 
 #check spelling/caps for countries
 # levels(as.factor(cases$Country.Region))
 usCanada <- covid19 %>%
-  filter(Country.Region %in% c("US", "Canada")) %>%
+  filter(Country.Region %in% c("United States", "Canada")) %>%
   droplevels() %>%
   group_by(date, Country.Region) %>%
   summarise(confirmedCases = sum(confirmedCases),
@@ -250,16 +255,14 @@ ggplot(usDailyLongNoTotal)+
   # scale_y_log10()+
   theme_bw()+
   ggtitle("Outcome of tests")
+
 usDailyLongNoTotal%>%
   filter(testType %in% c("positive", "hospitalized", "death"))%>% 
 ggplot()+
   geom_bar(stat="identity", aes(x=date, y=count,fill=testType))+
   scale_fill_manual(values=testType.col)+
-  # scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
-              # labels = scales::trans_format("log10", scakes::math_format(10^.x)))+
-  scale_y_log10()+
+  # scale_y_log10()+
   theme_bw()+
-  annotation_logticks() +
   ggtitle("Positive cases")
 ```
 

@@ -146,7 +146,7 @@ anim <- ggplot(covid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, co
                # aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")+
     transition_time(time=covid19$date)+
     ggtitle('Now showing {frame_time}')
-animate(anim, renderer = gifski_renderer())
+animate(anim, renderer = gifski_renderer(), end_pause = 10)
 anim_save(filename="casesDeathsPerCapitaText.gif", animation=last_animation())
 
 

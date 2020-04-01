@@ -21,10 +21,15 @@ First, I need to set up my R session by installing and loading packages.
 # install.packages("tidyverse") 
 ## get population data from CRAN packages
 # install.packages("gapminder")
+# install.packages("gganimate")
+# install.packages("gifski")
 
 library(ggplot2)
 library(tidyverse)
 library(gapminder)
+library(gganimate)
+library(gifski)
+
 
 ```
 ## Read in global data gathered by Johns Hopkins CSSE 
@@ -127,6 +132,22 @@ ggplot(todayscovid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, colo
                aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")
 ggsave(file=paste0("PerCapitaCasesDeaths", format(Sys.Date(), "%B%d"), ".jpg"))
 
+
+### lets see if I can animate by day, this works but the text is all over the place, turning that off for now
+
+anim <- ggplot(covid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, color=continent))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Set1")+
+    # geom_text(data=subset(covid19, confirmedCases*100000/pop > 150),
+              # aes(x=confirmedCases*100000/pop, y=deaths*100000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
+    labs(x="Cases per 100,000", y="Deaths per 100,000")+
+    # geom_text(data=subset(covid19, Country.Region == "United States"),
+               # aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")+
+    transition_time(time=covid19$date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer())
+anim_save(filename="casesDeathsPerCapitaText.gif", animation=last_animation())
 
 
 ```

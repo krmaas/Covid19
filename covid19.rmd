@@ -424,7 +424,7 @@ anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=death/positive, color=DIVISIO
     scale_color_brewer(palette="Paired")+
     # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
               # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
-  labs(x="Cases per 1000 ", y="Deaths per 1000")+
+  labs(x="Cases per 1000 ", y="Case Fatality Rate")+
     # geom_text(data=subset(covid19, Country.Region == "United States"),
                # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")+
     transition_time(time=usDailyAll$date)+

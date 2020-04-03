@@ -10,26 +10,31 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 ---
 
-## Set up session
+
+I started writing this as an example for how to analyze public data in R, which I still think is a great use of shelter-in-place time. But now I'm shifting to thinking this could be a useful way for non-programers to look at data, so I'll post a page that is just the figures and my explaninations of why I made that figure without all of the code. stay tuned for that.
+
+If you want to run this analysis on your computer without retyping anything, grab the [.Rmd](https://github.com/krmaas/Covid19/blob/master/covid19.rmd).
+
 Public data on the spread of coronavirus has been compiled by Johns Hopkins CSSE for their excellent [dashboard](https://www.arcgis.com/apps/opsdashboard/index.html#/bda7594740fd40299423467b48e9ecf6). They are posting the [raw data on github](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data). I'm writing this up because getting data from GitHub into R is pretty easy, but I have to look it up each time. 
 
+## Set up session
 First, I need to set up my R session by installing and loading packages.
-```{r setup, message=FALSE, warning = FALSE}
+```{r setup, message=FALSE, warning = FALSE, message=FALSE}
 
 
 # install.packages("ggplot2")
 # install.packages("tidyverse") 
-## get population data from CRAN packages
 # install.packages("gapminder")
 # install.packages("gganimate")
 # install.packages("gifski")
+# install.packages("geofacet")
 
 library(ggplot2)
 library(tidyverse)
 library(gapminder)
 library(gganimate)
 library(gifski)
-
+library(geofacet)
 
 ```
 ## Read in global data gathered by Johns Hopkins CSSE 
@@ -37,7 +42,7 @@ library(gifski)
 Now let's fetch the data, currently it looks like the data is updated every evening around 5 EST. We want the raw data not the formated for humans data (click the "Raw" button on the right side of the GitHub window).
 
 
-```{r JohnsHopkins, warning = FALSE}
+```{r JohnsHopkins, warning = FALSE, message=FALSE}
 covid19cases <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv", header=TRUE)
 tibble(covid19cases)
 covid19deaths <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv", header=TRUE)
@@ -54,7 +59,7 @@ Looking at other peoples' data is always interesting, even really nicely organiz
 
 We have 4 variables with location data (Province.State, Country.Region, Lat, Long) and a bunch of columns with each day's data. The date columns all read in with "X" at the beginning of the variable name because R doesn't like variable names to start with numbers. We can use that to specify how to tidy the data. If you've tidied data in R for a while you might have used, melt/cast or gather/spread. The tidyverse has come out with a new way that is a bit more intuitive, [pivot_longer/pivot_wider](https://tidyr.tidyverse.org/articles/pivot.html).
 
-```{r tidyJonhsHopkins, warning = FALSE}
+```{r tidyJonhsHopkins, warning = FALSE, message=FALSE}
 cases <- covid19cases %>%
   pivot_longer( cols = starts_with("X"), # I'm specifing the coluns that I want to tidy (use "-" to specify the columns you want to leave alone)
                 names_to = "date", # variable name for the variables column
@@ -72,7 +77,7 @@ tibble(deaths)
 
 Both the cases and deaths data seem to match row by row, however I want to join based on a unique key rather than trusting that row 15873 in cases goes with row 15873 in deaths. To join we need to create a unique key for each observation. Initially I thought that Lat/Long would provide that but there were cruise ship observations with the same Lat/Long but different ships. The way that I figured this out was by joining on Lat/Long and seeing that the total number of observations in the new dataframe was larger than the originals. then I looked for duplicates. So we're going to create a new variable called "join" in both dataframes that is just pasting all of our location variables together.
 
-```{r mergeCasesDeaths, warning = FALSE}
+```{r mergeCasesDeaths, warning = FALSE, message=FALSE}
 cases$join <- paste(cases$Province.State, cases$Country.Region ,cases$Lat, cases$Long, cases$date)
 
 deaths$join <- paste(deaths$Province.State, deaths$Country.Region,deaths$Lat, deaths$Long, deaths$date)
@@ -101,7 +106,7 @@ Now that the data is tidied and joined, it's time to explore.
 
 *Nearly tidied because the valued in confirmedCases and deaths are the same thing-counts of individuals. Depending on what you want to do with the data, you may way to tidy those further.*
 
-```{r graphJohnsHopkins, warning = FALSE}
+```{r graphJohnsHopkins, warning = FALSE, message=FALSE}
 #Plot the cases and deaths over time
 ggplot(data=covid19)+
   geom_bar(aes(x=date, y=confirmedCases), stat="identity")+
@@ -109,7 +114,7 @@ ggplot(data=covid19)+
 ```
 
 #### add in population data from gapminder
-```{r addGapMinder, warning = FALSE}
+```{r addGapMinder, warning = FALSE, message=FALSE}
 data("gapminder_unfiltered")
 
 
@@ -121,34 +126,36 @@ todayscovid19 <- covid19 %>%
     summarise(confirmedCases = sum(confirmedCases),
               deaths = sum(deaths))
 
-ggplot(todayscovid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, color=continent))+
+ggplot(todayscovid19, aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, color=continent))+
     geom_point(size=3)+
     theme_bw()+
     scale_color_brewer(palette="Set1")+
-    geom_text(data=subset(todayscovid19, confirmedCases*100000/pop > 150), 
-              aes(x=confirmedCases*100000/pop, y=deaths*100000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
-    labs(x="Cases per 100,000", y="Deaths per 100,000")+
+    geom_text(data=subset(todayscovid19, confirmedCases*1000/pop > 1.50), 
+              aes(x=confirmedCases*1000/pop, y=deaths*1000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
+    labs(x="Cases per 1000", y="Deaths per 1000")+
     geom_text(data=subset(todayscovid19, Country.Region == "United States"), 
-               aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")
+               aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")
 ggsave(file=paste0("PerCapitaCasesDeaths", format(Sys.Date(), "%B%d"), ".jpg"))
+```
 
+### Global Cases and Deaths per capita through time
 
+```{r GlobalCasesDeaths, warning = FALSE, message=FALSE}
 ### lets see if I can animate by day, this works but the text is all over the place, turning that off for now
 
-anim <- ggplot(covid19, aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, color=continent))+
+anim <- ggplot(covid19, aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, color=continent))+
     geom_point(size=3)+
     theme_bw()+
     scale_color_brewer(palette="Set1")+
-    # geom_text(data=subset(covid19, confirmedCases*100000/pop > 150),
-              # aes(x=confirmedCases*100000/pop, y=deaths*100000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
-    labs(x="Cases per 100,000", y="Deaths per 100,000")+
+    # geom_text(data=subset(covid19, confirmedCases*1000/pop > .15),
+              # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop,label=Country.Region), vjust="inward", hjust="inward", color="Black")+
+    labs(x="Cases per 1000 ", y="Deaths per 1000")+
     # geom_text(data=subset(covid19, Country.Region == "United States"),
-               # aes(x=confirmedCases*100000/pop, y=deaths*100000/pop, label="US"), size=5, color="black")+
+               # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")+
     transition_time(time=covid19$date)+
     ggtitle('Now showing {frame_time}')
 animate(anim, renderer = gifski_renderer(), end_pause = 15)
 anim_save(filename="casesDeathsPerCapita.gif", animation=last_animation())
-
 
 ```
 
@@ -157,7 +164,7 @@ anim_save(filename="casesDeathsPerCapita.gif", animation=last_animation())
 
 I started working on this becasue Kid1 wanted the numbers for the US and Canada each day. You can chain together all commands and not make an object of just the US and Canada, but I like to check that I've changed the data the way I think I'm changing the data
 
-```{r USCanada, warning = FALSE}
+```{r USCanada, warning = FALSE, message=FALSE}
 #check spelling/caps for countries
 # levels(as.factor(cases$Country.Region))
 usCanada <- covid19 %>%
@@ -171,34 +178,34 @@ usCanada <- covid19 %>%
 
 Write this daily data to a csv for Kid1 to open and paste into excel because he isn't interested in learning R yet.
 
-```{r USCanadaCSV, warning = FALSE}
+```{r USCanadaCSV, warning = FALSE, message=FALSE}
 write.csv(usCanada, file=paste0("usCanadaDaily", format(Sys.Date(),"%B%d"),".csv"))
 
 
 ```
 
 I can't help but make a graph for him as well, because seeing data is fundimental to understanding the numbers
-```{r USCanadaScatter, warning = FALSE}
+```{r USCanadaScatter, warning = FALSE, message=FALSE}
 ggplot(usCanada, aes(x=date, y=confirmedCases, color=Country.Region))+
   geom_point()+
-  theme_bw()
+  theme_classic()
 ```
 
 Making the data fully tidy allows for other visualizations
 
-```{r USCanadaBar, warning = FALSE}
+```{r USCanadaBar, warning = FALSE, message=FALSE}
 usCanadaLong <- pivot_longer(usCanada, -c(date, Country.Region), names_to="caseType", values_to = "count")
 ggplot(usCanadaLong, aes(x=date, y=count, fill=caseType))+
   geom_bar(stat="identity")+
   facet_wrap(vars(Country.Region), scales = "free_y")+
-  theme_bw()
+  theme_classic()
 ```
 
 ## US testing numbers compiled by Covid Project
 
 The lack of testing in the US is a critical concern in stopping the spread of the virus. And it's personally/professionally interesting because qPCR is something that we do in (MARS)[https://mars.uconn.edu] often. The (Covid Tracking Project)[https://covidtracking.com] is trying to compile all testing data, not just positives from each state.
 
-```{r covidProject, warning = FALSE}
+```{r covidProject, warning = FALSE, message=FALSE}
 # Read in current  data
 usDaily <- read.csv("https://covidtracking.com/api/states/daily.csv", header=T)
 usDaily$date <- as.Date(as.character(usDaily$date), format="%Y%m%d")
@@ -208,39 +215,64 @@ usPop <- read.csv("https://www2.census.gov/programs-surveys/popest/datasets/2010
 
 # CovidProject has states 2 letter abbreviation. The census has states spelled out. We need a linker file.
 
-usAbb <- read.csv("https://raw.githubusercontent.com/jasonong/List-of-US-States/master/states.csv", header=T)
+usAbb <- read.csv("https://raw.githubusercontent.com/jasonong/List-of-US-States/master/states.csv", header=T, stringsAsFactors = F)
 
 usPop <- left_join(usPop, usAbb, by=c("NAME" = "State"))
 
 # Puerto Rico isn't listed correctly, just going to fix manually
 
-usPop[usPop$NAME == "Puerto Rico Commonwealth "]$Abbreviation <- "PR"
+usPop[usPop$NAME == "Puerto Rico Commonwealth", "Abbreviation"] <- "PR"
 
+# regions and divisions are numberic rather than words
+
+usPop$REGION <- recode(usPop$REGION, 
+  "0" = "US",
+  "1" = "Northeast",
+  "2" = "Midwest",
+  "3" = "South",
+  "4" = "West",
+  "X" = "Puerto Rico"
+)
+
+usPop$DIVISION <- recode(usPop$DIVISION, 
+                         "0" = "US",
+                         "1" = "New England",
+                         "2" = "Middle Atlantic",
+                         "3" = "East North Central",
+                         "4" = "West North Central",
+                         "5" = "South Atlantic",
+                         "6" = "East South Central",
+                         "7" = "West South Central",
+                         "8" = "Mountain",
+                         "9" = "Pacific",
+                         "X" = "Puerto Rico" )
 
 ```
 #### Positive  and per capita rate
 
 Calculate the positive rate which is important for determining how prevelant cases are in the community. 
-```{r covidProjectPosRate, warning = FALSE}
+```{r covidProjectPosRate, warning = FALSE, message=FALSE}
 usDaily$posRate <- usDaily$positive/usDaily$total
 
 usDailyAll <- left_join(usDaily, usPop, by=c("state" = "Abbreviation")) %>%
-    mutate(posTotalPerCap = (positive*100000)/POPESTIMATE2019,
-           negTotalPerCap = (negative*100000)/POPESTIMATE2019,
-           hospTotalPerCap = (hospitalized*100000)/POPESTIMATE2019,
-           deathTotalPerCap = (death*100000)/POPESTIMATE2019,
-           totalTotalPerCap = (total*100000)/POPESTIMATE2019,
-        deathPerCap = (deathIncrease*100000)/POPESTIMATE2019,
-           hospitalizedPerCap = (hospitalizedIncrease*100000)/POPESTIMATE2019,
-           positivePerCap = (positiveIncrease*100000)/POPESTIMATE2019,
-            testsPerCap = (totalTestResultsIncrease*100000)/POPESTIMATE2019)
+    mutate(posTotalPerCap = (positive*1000)/POPESTIMATE2019,
+           negTotalPerCap = (negative*1000)/POPESTIMATE2019,
+           hospTotalPerCap = (hospitalized*1000)/POPESTIMATE2019,
+           deathTotalPerCap = (death*1000)/POPESTIMATE2019,
+           totalTotalPerCap = (total*1000)/POPESTIMATE2019,
+        deathPerCap = (deathIncrease*1000)/POPESTIMATE2019,
+           hospitalizedPerCap = (hospitalizedIncrease*1000)/POPESTIMATE2019,
+           positivePerCap = (positiveIncrease*1000)/POPESTIMATE2019,
+            testsPerCap = (totalTestResultsIncrease*1000)/POPESTIMATE2019)
 
+usDailyAll$REGION <- droplevels(usDailyAll$REGION)
+usDailyAll$DIVISION <- droplevels(usDailyAll$DIVISION)
 
 ```
 
 We'll tidy the Covid Project data so we can plot it .
 
-```{r covidProjectTidy, warning = FALSE}
+```{r covidProjectTidy, warning = FALSE, message=FALSE}
 
 usDailyIncrease <- usDailyAll %>%
   select(c(date, state, deathIncrease, hospitalizedIncrease, negativeIncrease, positiveIncrease, totalTestResultsIncrease))
@@ -269,65 +301,145 @@ testType.col <- c("negative" = "grey",
 
 #### Plot the total tests and their outcomes
 
-```{r covidProjectOutcomes, warning = FALSE}
+
+
+```{r covidProjectOutcomes, warning = FALSE, message=FALSE}
 ggplot(usDailyLongNoTotal)+
   geom_bar(stat="identity", aes(x=date, y=count,fill=testType))+
   scale_fill_manual(values=testType.col)+
   # scale_y_log10()+
-  theme_bw()+
-  ggtitle("Outcome of tests")
+  theme_classic()+
+  scale_y_continuous(labels = scales::comma)+
+  ggtitle("Outcome of tests all of US")
 
 usDailyLongNoTotal%>%
   filter(testType %in% c("positive", "hospitalized", "death"))%>% 
 ggplot()+
   geom_bar(stat="identity", aes(x=date, y=count,fill=testType))+
   scale_fill_manual(values=testType.col)+
+  scale_y_continuous(labels = scales::comma)+
+  theme_classic()+
+  ggtitle("Positive cases all of US")
+
+```
+
+Total tests adminstered by each state. 
+
+```{r covidProjectTestingState, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
+ggplot(usDaily, aes(x=date, y=total))+
+  geom_line()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
   # scale_y_log10()+
-  theme_bw()+
-  ggtitle("Positive cases")
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Tests administered by state")
+
 ```
 
 Testing is very patchy by state, so lets look at the positive rate through time for each state
 
-```{r covidProjectPosState, warning = FALSE, fig.height=15, fig.width=10}
+```{r covidProjectPosState, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
 ggplot(usDaily, aes(x=date, y=posRate))+
   geom_line()+
-  facet_wrap(~state)+
-  theme_bw()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Positive test rate by state")
 
-ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
-  geom_line()+
-  facet_wrap(~state)+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Positive test per 100,000 by state")
+
 ```
 
-Such wildly different positive rates are likley due to testing intensity. To make this more informative, I should divide # tests by state population. But that's a task for another day.
 
-```{r covidProjectTestingState, warning = FALSE, fig.height=15, fig.width=10}
-ggplot(usDaily, aes(x=date, y=total))+
+
+
+### Plot per capita testing rates by state
+
+
+It's hard to compare raw numbers of tests because of different population sizes in each state. So lets calculate tests and positives per capita as permil (1‰ is 1 in 1000, as compared to 1% is 1 in 100)
+
+```{r covidProjectPerCapit, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
+ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
   geom_line()+
-  facet_wrap(~state)+
-  scale_y_log10()+
-  theme_bw()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Tests administered by state")
+  ggtitle("Positive test per 1000 by state")
+
 
 ggplot(usDailyAll, aes(x=date, y=totalTotalPerCap))+
   geom_line()+
-  facet_wrap(~state)+
-  theme_bw()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Total test per 100,000 by state")
+  ggtitle("Total test per 1000 by state")
+ggsave(filename = "perCapitaTotalTests.jpg")
+
+```
+### Cases and deaths per capita through time
+
+
+```{r UScasesDeaths, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
+anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=REGION))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Set1")+
+    # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
+              # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
+    labs(x="Cases per 1000 ", y="Deaths per 1000")+
+    transition_time(time=usDailyAll$date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer(), end_pause = 25)
+anim_save(filename="casesDeathsPerCapitaUSregion.gif", animation=last_animation())
+
+
+anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=DIVISION))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Paired")+
+    # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
+              # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
+  labs(x="Cases per 1000 ", y="Deaths per 1000")+
+    # geom_text(data=subset(covid19, Country.Region == "United States"),
+               # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")+
+    transition_time(time=usDailyAll$date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer(), end_pause = 25)
+anim_save(filename="casesDeathsPerCapitaUSregion.gif", animation=last_animation())
+
+```
+
+### What about case fatality rate?
+
+It looks like NY's case fatality rate (CFR) is ~3% which is close to Wuhan's rate, less than Italy and Spains rate. But higher than many were hoping (cruise ship rate was under 1% which is likely good data because so many passengers were tested). I decided to plot death rate (CFR) vs cases per 1000 population. This graph puzzeled me when I first was staring at it-initially the per capita cases were very low but the death rate was very high. Which I believe is the signal of under testing/under diagnosing, only the very sick are tested. This suggests that many states are still under testing because they still have a CFR greater than NY which has said that they can't test mild cases. 
+
+```{r caseFatalityRate, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=10}
+
+anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=death/positive, color=DIVISION))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Paired")+
+    # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
+              # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
+  labs(x="Cases per 1000 ", y="Deaths per 1000")+
+    # geom_text(data=subset(covid19, Country.Region == "United States"),
+               # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")+
+    transition_time(time=usDailyAll$date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer(), end_pause = 25)
+anim_save(filename="CFRtime.gif", animation=last_animation())
+
 
 ```
 
 #### Plotting the increases
 
-```{r increases, warning = FALSE}
+We are still under testing, looking at the increases in tests and positives each day can help demonstrate that.
+
+```{r increases, warning = FALSE, message=FALSE}
 usDailyIncreaselong<- usDailyIncrease%>%
   pivot_longer(-c(date, state), names_to = "testType", values_to = "count")%>%
   filter(testType %in% c("deathIncrease", "positiveIncrease", "hospitalizedIncrease"))
@@ -352,48 +464,53 @@ ggplot(data=usTotalsIncrease, aes(x=date, y=negativeIn))+
 ```
 
 
-```{r increasesPop, warning = FALSE, fig.height=15, fig.width=10}
+```{r increasesPop, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
 ggplot(usDailyIncrease)+
-  geom_point(aes(x=date, y=totalTestResultsIncrease))+
-  facet_wrap(~state)+
-  theme_bw()+
+  geom_line(aes(x=date, y=totalTestResultsIncrease))+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   # scale_y_log10()+
   ggtitle("Daily increase in tests")
 
 usIncPop <- left_join(usDailyIncrease, usPop, by=c("state" = "Abbreviation")) %>%
-    mutate(deathPerCap = (deathIncrease*100000)/POPESTIMATE2019,
-           hospitalizedPerCap = (hospitalizedIncrease*100000)/POPESTIMATE2019,
-           positivePerCap = (positiveIncrease*100000)/POPESTIMATE2019,
-            testsPerCap = (totalTestResultsIncrease*100000)/POPESTIMATE2019)
+    mutate(deathPerCap = (deathIncrease*1000)/POPESTIMATE2019,
+           hospitalizedPerCap = (hospitalizedIncrease*1000)/POPESTIMATE2019,
+           positivePerCap = (positiveIncrease*1000)/POPESTIMATE2019,
+            testsPerCap = (totalTestResultsIncrease*1000)/POPESTIMATE2019)
+
+
 
 ggplot(usIncPop, aes(x=date, y=positivePerCap))+
   geom_line()+
-  facet_wrap(~state)+
-  theme_bw()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Positive test per 100,000 by state")
+  ggtitle("Daily positive test per 1000 by state")
 
 ggplot(usIncPop, aes(x=date, y=testsPerCap))+
   geom_line()+
-  facet_wrap(~state)+
-  theme_bw()+
+  # facet_wrap(~state)+ #wraping by state name
+  facet_geo(~state)+ #wraping by state location
+  theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Tests per 100,000 by state")
+  ggtitle("Daily tests per 1000 by state")
 
 
 ```
 
 
-###Bringing it home. How is CT doing?
+### Bringing it home. How is CT doing?
 
-```{r covidProjectCT, warning = FALSE}
+```{r covidProjectCT, warning = FALSE, message=FALSE}
 usDailyLongNoTotal %>%
   filter(state == "CT") %>%
 ggplot()+
   geom_bar(stat="identity", aes(x=date, y=count,fill=testType))+
   scale_fill_manual(values=testType.col)+
   # scale_y_log10()+
-  theme_bw()+
+  theme_classic()+
   ggtitle("CT outcome of tests")
 # ggsave(file=paste0("ctTestOutCome", format(Sys.Date(), "%B%d"), ".jpg"))
 
@@ -405,12 +522,13 @@ usDaily %>%
   ggtitle("CT positive test rate")
 ```
 
-There was a big spike in positive rate March 18, which means they were only testing people who were likley sick. If we look at total tests administered, there's been a significant increase in testing since then.
+There was a big spike in positive rate March 18, which means they were only testing people who were likley sick. If we look at total tests administered, there's been a significant increase in testing since then. But our positive test result (and statements from state public health) tell us that we are still under testing.
 
-```{r covidProjectCTtests, warning = FALSE}
+```{r covidProjectCTtests, warning = FALSE, message=FALSE}
 usDaily %>%
   filter(state == "CT") %>%
   ggplot(aes(x=date, y=total))+
   geom_line()+
+  theme_bw()+
   ggtitle("CT test administered")
 ```

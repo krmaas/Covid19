@@ -10,10 +10,17 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 ---
 
+April 3, 2020
+
+NY Times has released their state and county level date. I will get that data in over the weekend.
+
+April 2, 2020
 
 I started writing this as an example for how to analyze public data in R, which I still think is a great use of shelter-in-place time. But now I'm shifting to thinking this could be a useful way for non-programers to look at data, so I'll post a page that is just the figures and my explaninations of why I made that figure without all of the code. stay tuned for that.
 
 If you want to run this analysis on your computer without retyping anything, grab the [.Rmd](https://github.com/krmaas/Covid19/blob/master/covid19.rmd).
+
+March 30, 2020
 
 Public data on the spread of coronavirus has been compiled by Johns Hopkins CSSE for their excellent [dashboard](https://www.arcgis.com/apps/opsdashboard/index.html#/bda7594740fd40299423467b48e9ecf6). They are posting the [raw data on github](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data). I'm writing this up because getting data from GitHub into R is pretty easy, but I have to look it up each time. 
 

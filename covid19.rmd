@@ -115,7 +115,8 @@ Now that the data is tidied and joined, it's time to explore.
 
 ```{r graphJohnsHopkins, warning = FALSE, message=FALSE}
 #Plot the cases and deaths over time
-ggplot(data=covid19)+
+ggplot(data=covid19)+  
+  scale_y_continuous(labels = scales::comma)+
   geom_bar(aes(x=date, y=confirmedCases), stat="identity")+
   geom_bar(aes(x=date, y=deaths), stat="identity", fill="red")
 ```

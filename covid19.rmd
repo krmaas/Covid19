@@ -30,11 +30,13 @@ First, I need to set up my R session by installing and loading packages.
 
 
 # install.packages("ggplot2")
-# install.packages("tidyverse") 
+# install.packages("tidyverse")
 # install.packages("gapminder")
 # install.packages("gganimate")
 # install.packages("gifski")
 # install.packages("geofacet")
+# install.packages("devtools")
+# devtools::install_github("UrbanInstitute/urbnmapr")
 
 library(ggplot2)
 library(tidyverse)
@@ -42,6 +44,8 @@ library(gapminder)
 library(gganimate)
 library(gifski)
 library(geofacet)
+
+
 
 ```
 ## Read in global data gathered by Johns Hopkins CSSE 
@@ -118,7 +122,9 @@ Now that the data is tidied and joined, it's time to explore.
 ggplot(data=covid19)+  
   scale_y_continuous(labels = scales::comma)+
   geom_bar(aes(x=date, y=confirmedCases), stat="identity")+
-  geom_bar(aes(x=date, y=deaths), stat="identity", fill="red")
+  geom_bar(aes(x=date, y=deaths), stat="identity", fill="red")+
+  theme_bw()+
+  ggtitle("Global cumulative cases")
 ```
 
 #### add in population data from gapminder
@@ -143,6 +149,8 @@ ggplot(todayscovid19, aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, color=co
     labs(x="Cases per 1000", y="Deaths per 1000")+
     geom_text(data=subset(todayscovid19, Country.Region == "United States"), 
                aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")
+  # geom_text(data=subset(todayscovid19, Country.Region == "India"), 
+               # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="India"), size=5, color="black")
 ggsave(file=paste0("PerCapitaCasesDeaths", format(Sys.Date(), "%B%d"), ".jpg"))
 ```
 
@@ -195,6 +203,7 @@ write.csv(usCanada, file=paste0("usCanadaDaily", format(Sys.Date(),"%B%d"),".csv
 I can't help but make a graph for him as well, because seeing data is fundimental to understanding the numbers
 ```{r USCanadaScatter, warning = FALSE, message=FALSE}
 ggplot(usCanada, aes(x=date, y=confirmedCases, color=Country.Region))+
+    scale_y_continuous(labels = scales::comma)+
   geom_point()+
   theme_classic()
 ```
@@ -204,7 +213,8 @@ Making the data fully tidy allows for other visualizations
 ```{r USCanadaBar, warning = FALSE, message=FALSE}
 usCanadaLong <- pivot_longer(usCanada, -c(date, Country.Region), names_to="caseType", values_to = "count")
 ggplot(usCanadaLong, aes(x=date, y=count, fill=caseType))+
-  geom_bar(stat="identity")+
+  geom_bar(stat="identity")+  
+  scale_y_continuous(labels = scales::comma)+
   facet_wrap(vars(Country.Region), scales = "free_y")+
   theme_classic()
 ```
@@ -254,6 +264,9 @@ usPop$DIVISION <- recode(usPop$DIVISION,
                          "8" = "Mountain",
                          "9" = "Pacific",
                          "X" = "Puerto Rico" )
+
+# add Puerto Rico to geofacet
+my_gird <- us_state_grid1 %>% add_row(row=6, col=11, code="PR",name="Puerto Rico")
 
 ```
 #### Positive  and per capita rate
@@ -337,8 +350,9 @@ Total tests adminstered by each state.
 ggplot(usDaily, aes(x=date, y=total))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+  facet_geo(~state, grid=my_gird)+ #wraping by state location
   # scale_y_log10()+
+    scale_y_continuous(labels = scales::comma)+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Tests administered by state")
@@ -351,8 +365,9 @@ Testing is very patchy by state, so lets look at the positive rate through time 
 ggplot(usDaily, aes(x=date, y=posRate))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
-  theme_classic()+
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
+  theme_classic()+  
+  scale_y_continuous(labels = scales::comma)+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Positive test rate by state")
 
@@ -371,8 +386,9 @@ It's hard to compare raw numbers of tests because of different population sizes 
 ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
+  scale_y_continuous(labels = scales::comma)+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Positive test per 1000 by state")
 
@@ -380,8 +396,9 @@ ggplot(usDailyAll, aes(x=date, y=posTotalPerCap))+
 ggplot(usDailyAll, aes(x=date, y=totalTotalPerCap))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
+  scale_y_continuous(labels = scales::comma)+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Total test per 1000 by state")
 ggsave(filename = "perCapitaTotalTests.jpg")
@@ -395,14 +412,25 @@ anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=REGIO
     geom_point(size=3)+
     theme_bw()+
     scale_color_brewer(palette="Set1")+
-    # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
-              # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
+    geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
+              aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
     labs(x="Cases per 1000 ", y="Deaths per 1000")+
     transition_time(time=usDailyAll$date)+
     ggtitle('Now showing {frame_time}')
 animate(anim, renderer = gifski_renderer(), end_pause = 25)
 anim_save(filename="casesDeathsPerCapitaUSregion.gif", animation=last_animation())
 
+
+usToday <- usDailyAll %>%
+  filter(date==max(date))
+
+ggplot(usToday, aes(x=posTotalPerCap, y=deathTotalPerCap, color=DIVISION))+
+    geom_point(size=3)+
+    theme_bw()+
+    scale_color_brewer(palette="Paired")+
+    geom_text(data=subset(usToday, posTotalPerCap > 1.5),
+              aes(x=posTotalPerCap, y=deathTotalPerCap,label=state),  vjust="outward", hjust="inward",color="Black")+
+  labs(x="Cases per 1000 ", y="Deaths per 1000")
 
 anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=DIVISION))+
     geom_point(size=3)+
@@ -411,8 +439,6 @@ anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=DIVIS
     # geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
               # aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
   labs(x="Cases per 1000 ", y="Deaths per 1000")+
-    # geom_text(data=subset(covid19, Country.Region == "United States"),
-               # aes(x=confirmedCases*1000/pop, y=deaths*1000/pop, label="US"), size=5, color="black")+
     transition_time(time=usDailyAll$date)+
     ggtitle('Now showing {frame_time}')
 animate(anim, renderer = gifski_renderer(), end_pause = 25)
@@ -476,7 +502,7 @@ ggplot(data=usTotalsIncrease, aes(x=date, y=negativeIn))+
 ggplot(usDailyIncrease)+
   geom_line(aes(x=date, y=totalTestResultsIncrease))+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
   # scale_y_log10()+
   ggtitle("Daily increase in tests")
@@ -492,7 +518,7 @@ usIncPop <- left_join(usDailyIncrease, usPop, by=c("state" = "Abbreviation")) %>
 ggplot(usIncPop, aes(x=date, y=positivePerCap))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Daily positive test per 1000 by state")
@@ -500,7 +526,7 @@ ggplot(usIncPop, aes(x=date, y=positivePerCap))+
 ggplot(usIncPop, aes(x=date, y=testsPerCap))+
   geom_line()+
   # facet_wrap(~state)+ #wraping by state name
-  facet_geo(~state)+ #wraping by state location
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Daily tests per 1000 by state")
@@ -539,4 +565,14 @@ usDaily %>%
   geom_line()+
   theme_bw()+
   ggtitle("CT test administered")
+```
+
+
+## NY Times data
+New York Times has released their data on US cases at the county level.
+
+```{r nyTimesCounty}
+nytcounty <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv", header = T)
+
+
 ```

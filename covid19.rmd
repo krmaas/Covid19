@@ -49,9 +49,10 @@ library(geofacet)
 library(urbnmapr)
 library(transformr)
 library(tweenr)
+library(sf)
 
 ```
-## Read in global data gathered by Johns Hopkins CSSE 
+## Global data gathered by Johns Hopkins CSSE 
 
 Now let's fetch the data, currently it looks like the data is updated every evening around 5 EST. We want the raw data not the formated for humans data (click the "Raw" button on the right side of the GitHub window).
 
@@ -411,18 +412,6 @@ ggsave(filename = "perCapitaTotalTests.jpg")
 
 
 ```{r UScasesDeaths, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
-anim <- ggplot(usDailyAll, aes(x=posTotalPerCap, y=deathTotalPerCap, color=REGION))+
-    geom_point(size=3)+
-    theme_bw()+
-    scale_color_brewer(palette="Set1")+
-    geom_text(data=subset(usDailyAll, posTotalPerCap > 1.5),
-              aes(x=posTotalPerCap, y=deathTotalPerCap,label=NAME), vjust="inward", hjust="inward", color="Black")+
-    labs(x="Cases per 1000 ", y="Deaths per 1000")+
-    transition_time(time=usDailyAll$date)+
-    ggtitle('Now showing {frame_time}')
-animate(anim, renderer = gifski_renderer(), end_pause = 25)
-anim_save(filename="casesDeathsPerCapitaUSregion.gif", animation=last_animation())
-
 
 usToday <- usDailyAll %>%
   filter(date==max(date))
@@ -543,7 +532,7 @@ ggplot(usIncPop, aes(x=date, y=deathPerCap))+
  facet_geo(~state, grid=my_gird)+ #wraping by state location
   theme_classic()+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Daily tests per 1000 by state")
+  ggtitle("Daily deaths per 1000 by state")
 ggsave("DailyDeathsPerCapitaState.jpg", width=10, height=8)
 
 
@@ -583,19 +572,30 @@ usDaily %>%
 ```
 
 
-## NY Times data
+## NY Times county data
 New York Times has released their data on US cases at the county level.
 
-```{r nyTimesCounty}
+```{r nyTimesCounty, message=FALSE, echo=FALSE}
 nytcounty <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv", header = T)
+
+# New York and Kansas city are reported as cities rather than counties. New York can just add together the 5 counties. but kc has parts of multiple counties not whole counties, still trying to figure out how to deal with that. for the moment, I'm just going to assign all nyc counties to a new county "NYC". I'll figure out KC later.
+
+# nytcounty[nytcounty$county == "New York City", "fips"] <- 36999 
+# nytcounty[nytcounty$county == "Kansas City", "fips"] <- 29999 
+
 
 countyPop <- read.csv("https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/totals/co-est2019-alldata.csv", header=T)
 
 
 countyPop$fips <- as.integer(paste0(countyPop$STATE, formatC(countyPop$COUNTY, width=3, format = "d", flag = "0")))
 
+
 ctyPop <- countyPop%>%
-  select(STNAME, CTYNAME, CENSUS2010POP, fips)
+  select(STNAME, CTYNAME, CENSUS2010POP, fips)   %>%
+  add_row(STNAME = "New York", CTYNAME= "NYC", CENSUS2010POP = 8623000, fips = 36999) # %>%
+  # add_row(STNAME = "Missouri", CTYNAME= "Kansas City", CENSUS2010POP = 2487053, fips = 29999)
+ 
+
 
 nytcountypop <- left_join(nytcounty, ctyPop, by = "fips")
 
@@ -607,8 +607,63 @@ nytcountypop$casesPerCap <- (nytcountypop$cases*1000)/nytcountypop$CENSUS2010POP
 
 nytcountypop$deathsPerCap <- (nytcountypop$deaths*1000)/nytcountypop$CENSUS2010POP
 
-# trying to figure out what I'm joining my data to, counties is from urbanmaps
-# counties <- counties
+#  counties is from urbanmaps, changing all county fips for NYC to 36999
+
+counties <- counties %>%
+  mutate(county_fips, county_fips = case_when(county_fips %in% c("36005", "36047", "36061",	"36085","36081") ~ "36999", TRUE ~ county_fips))
+
+counties$group <- as.character(counties$group)
+
+# counties <- counties %>%
+# mutate(.$group, .$group = case_when(county_fips %in% c("36999")) ~ "36999.1", TRUE ~ group)
+
+counties[counties$county_fips == "36999", "group"] <- "36999.1"
+
+
+# determine coords of new Kansas City polygon
+# counties %>%
+#   filter(state_abbv == "KS" &county_name == "Johnson County")%>%
+#   summarise(minlat = min(lat), maxlat= max(lat), minlong = min(long), maxlong=max(long) )
+# 
+#   minlat maxlat minlong maxlong
+#    <dbl>  <dbl>   <dbl>   <dbl>
+# 1   38.7   39.1   -95.1   -94.6
+# 
+# 
+# counties %>%
+#   filter(state_abbv == "MO" &county_name == "Jackson County")%>%
+#   summarise(minlat = min(lat), maxlat= max(lat), minlong = min(long), maxlong=max(long) )
+# 
+#   minlat maxlat minlong maxlong
+#    <dbl>  <dbl>   <dbl>   <dbl>
+# 1   38.8   39.2   -94.6   -94.1
+
+# I'm making the Kansas City polygon as tall as jonhson/jackson counties and cover their inner half
+
+# kcmo <- counties %>%
+    # filter(state_abbv == "MO" &county_name == "Jackson County")%>%
+  # head(n = 4L) %>%
+  # dput()
+
+# there is probably a better way to do this, but I don't know it
+# kcmo[1,1] <- -95.7
+# kcmo[2,1] <- -94.2
+# kcmo[3,1] <- -94.2
+# kcmo[4,1] <- -95.7
+# 
+# kcmo[1,2] <- 39.2
+# kcmo[2,2] <- 39.2
+# kcmo[3,2] <- 38.7
+# kcmo[4,2] <- 38.7
+# 
+# kcmo[,6] <- "29999.1"
+# kcmo[,7] <- "29999"
+# kcmo$county_name <- "Kansas City"
+# 
+# counties %>%
+  # rbind(counties, kcmo)
+
+
 
 nytcountypop <- left_join(nytcountypop, counties, by = c("fips" = "county_fips"))
 ```
@@ -617,11 +672,12 @@ nytcountypop <- left_join(nytcountypop, counties, by = c("fips" = "county_fips")
 
 NY Times has collected and made open their county level data, so we must plot it. I'm limiting the color scale for the maps of cases per capita because 3 ski towns in the west have incredibly high cases per capita, the scale doesn't change after a county hits 10 cases per 1000 residents (1%) even though some are now nearly 2%.
 
-``` {r nytMapCurrentDay}
+```{r nytMapCurrentDay, warning = FALSE, message=FALSE}
 nytcountypop %>%
     filter(date==max(date)) %>%
   ggplot() +
-  geom_boxplot(aes(x=state, y=casesPerCap))
+  geom_boxplot(aes(x=state, y=casesPerCap))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
 p <- nytcountypop %>%
@@ -630,7 +686,7 @@ p <- nytcountypop %>%
 
 p+    geom_polygon(aes(fill=casesPerCap))+
   geom_polygon(data = states, mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
-  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 10))+
+  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 12))+
   coord_map(projection = "albers", lat0 = 39, lat1=45)+
   labs(fill="Cases per capita")+
   theme_bw()+
@@ -663,7 +719,7 @@ ggsave("MapDeathsPerCaseCounty.jpg", width = 12, height=12)
 
 Looking at data from other countries with better testing and who are further into the pandemic than the US, the true case fatality rate seems to be between 0.5-3%. We can use this to map the areas of the country that are still undertesting. We'll use a really bad, much worse than we think might be true cutoff of 5%.
 
-```{r caseFatalityRateUndertesting}
+```{r caseFatalityRateUndertesting, warning = FALSE, message=FALSE}
 p+    geom_polygon(aes(fill=deaths/cases))+
   geom_polygon(data = states, mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
   scale_fill_viridis_c(option = "viridis",direction = -1, limits = c(0,.05))+
@@ -677,32 +733,31 @@ ggsave("MapDeathsPerCaseCounty.jpg", width = 12, height=12)
 
 ```
 
-```
 
 ### animate cases and deaths per capita through time
 
-```{r mapCasesAnimate}
+```{r mapCasesAnimate, warning = FALSE, message=FALSE}
 
 
 anim <- nytcountypop %>%
   filter(!is.na(casesPerCap)) %>%
-  ggplot(aes(long, lat, group=group))+
+  ggplot(aes(long, lat, group= fips))+
   geom_polygon(aes(fill=casesPerCap))+
   geom_polygon(data = states, mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
-  scale_fill_viridis_c(option = "viridis",direction = -1, limits = c(0, 10))+
+  scale_fill_viridis_c(option = "inferno",direction = -1)+
   coord_map(projection = "albers", lat0 = 39, lat1=45)+
   labs(fill="Cases per capita")+
   theme_bw()+
   theme(legend.position = "bottom")+
   transition_time(time=date)+
     ggtitle('Now showing {frame_time}')
-animate(anim, renderer = gifski_renderer(), end_pause = 10, fps = 5)
+animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
 
 anim_save(filename="mapCasesPerCapCounty.gif", animation=last_animation())
 
 ```
 
-```{r mapDeathAnimate}
+```{r mapDeathAnimate, warning = FALSE, message=FALSE}
 
 anim <- nytcountypop %>%
   filter(!is.na(deathsPerCap)) %>%
@@ -716,9 +771,41 @@ anim <- nytcountypop %>%
   theme(legend.position = "bottom")+
   transition_time(time=date)+
     ggtitle('Now showing {frame_time}')
-animate(anim, renderer = gifski_renderer(), end_pause = 10, fps = 5)
+animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
 
  anim_save(filename="mapDeathsPerCapCounty.gif", animation=last_animation())
 
 
 ```
+
+### Use today's deaths to calculate 3 weeks ago cases
+
+```{r calcPastCases, warning = FALSE, message=FALSE, message=FALSE, fig.height=10, fig.width=12}
+
+
+nytcounty$pastCasesDate <- as.Date(as.Date(nytcounty$date) - 21)
+
+# calculate past cases based on deaths, using 1.1% (Diamond Princess), 3% (China), and 7% (Spain/Italy)  CFR 
+nytcounty$pastCasesCFR01 <- nytcounty$deaths/0.011
+
+nytcounty$pastCasesCFR03 <- nytcounty$deaths/0.03
+
+nytcounty$pastCasesCFR07 <- nytcounty$deaths/0.07
+
+
+
+ggplot(data = nytcounty) + 
+  geom_line(aes(x=as.Date(pastCasesDate), y=pastCasesCFR01), color = "green")+
+  geom_line(aes(x=as.Date(pastCasesDate), y=pastCasesCFR03), color = "orange")+
+  geom_line(aes(x=as.Date(pastCasesDate), y=pastCasesCFR07), color = "red")+
+    geom_line(aes(x = as.Date(date), y = cases), color = "black")+
+  facet_geo(~state, grid=my_gird, scales="free_y")+ #wraping by state location
+    scale_y_continuous(labels = scales::comma)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("calculated cases based on deaths, 3 CFR 1% green, 3% orange, 7% red")
+ggsave("estCasesByState.jpg", width = 20, height = 12)
+
+```
+This map/graph shows official, detected cases in black. Then I used deaths to calculate cases in the past using 3 different case fatality rates (1% Diamond Princess, 3% China, 7% Spain/Italy). Since it take people ~3 weeks to die from Covid19, we can calculate back that for every death today, there were 100 or 33 or 14 cases 3 weeks ago depending on what CFR we use. I"m sure there is a much better way to display this.
+

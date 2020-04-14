@@ -576,11 +576,11 @@ usDaily %>%
 New York Times has released their data on US cases at the county level.
 
 ```{r nyTimesCounty, message=FALSE, echo=FALSE}
-nytcounty <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv", header = T)
+nytcounty <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv", header = T, stringsAsFactors = F)
 
 # New York and Kansas city are reported as cities rather than counties. New York can just add together the 5 counties. but kc has parts of multiple counties not whole counties, still trying to figure out how to deal with that. for the moment, I'm just going to assign all nyc counties to a new county "NYC". I'll figure out KC later.
 
-# nytcounty[nytcounty$county == "New York City", "fips"] <- 36999 
+nytcounty[nytcounty$county == "New York City", "fips"] <- 36999
 # nytcounty[nytcounty$county == "Kansas City", "fips"] <- 29999 
 
 
@@ -744,7 +744,7 @@ anim <- nytcountypop %>%
   ggplot(aes(long, lat, group= fips))+
   geom_polygon(aes(fill=casesPerCap))+
   geom_polygon(data = states, mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
-  scale_fill_viridis_c(option = "inferno",direction = -1)+
+  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 12))+
   coord_map(projection = "albers", lat0 = 39, lat1=45)+
   labs(fill="Cases per capita")+
   theme_bw()+
@@ -793,7 +793,6 @@ nytcounty$pastCasesCFR03 <- nytcounty$deaths/0.03
 nytcounty$pastCasesCFR07 <- nytcounty$deaths/0.07
 
 
-
 ggplot(data = nytcounty) + 
   geom_line(aes(x=as.Date(pastCasesDate), y=pastCasesCFR01), color = "green")+
   geom_line(aes(x=as.Date(pastCasesDate), y=pastCasesCFR03), color = "orange")+
@@ -809,3 +808,38 @@ ggsave("estCasesByState.jpg", width = 20, height = 12)
 ```
 This map/graph shows official, detected cases in black. Then I used deaths to calculate cases in the past using 3 different case fatality rates (1% Diamond Princess, 3% China, 7% Spain/Italy). Since it take people ~3 weeks to die from Covid19, we can calculate back that for every death today, there were 100 or 33 or 14 cases 3 weeks ago depending on what CFR we use. I"m sure there is a much better way to display this.
 
+
+```{r mapPredictedTime}
+
+pastCases <- nytcounty %>%
+  select(county, state, fips, pastCasesDate, pastCasesCFR01, pastCasesCFR03, pastCasesCFR07) %>%
+  pivot_longer( -c("county", "state", "fips", "pastCasesDate"),
+               names_to = "caseType", 
+               values_to = "cases")
+
+
+pastCases$date <- as.character(pastCases$pastCasesDate)
+pastCases$pastCasesDate <- NULL
+
+
+actualCases <-  nytcounty %>%
+  select(date, county, state, fips, cases, deaths) %>%
+  add_column("caseType" = "confirmedCases")
+
+modeledCases <- bind_rows(actualCases, pastCases)
+
+modeledCases%>%
+  filter(state=="Connecticut")%>%
+ggplot() + 
+  geom_boxplot(aes(x=as.Date(date), y=cases, group = interaction(date, caseType), fill=factor(caseType)), color = "light grey")+
+  # facet_geo(~state, grid=my_gird, scales="free_y")+ #wraping by state location
+    # scale_y_continuous(labels = scales::comma)+
+  scale_y_log10()+
+  # scale_x_continuous(limits = c())+
+  scale_fill_brewer(palette = "Spectral", drop=TRUE)+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("calculated cases based on deaths, Just CT")
+
+
+```

@@ -827,19 +827,19 @@ actualCases <-  nytcounty %>%
   add_column("caseType" = "confirmedCases")
 
 modeledCases <- bind_rows(actualCases, pastCases)
+modeledCases$date <- as.Date(modeledCases$date)
 
 modeledCases%>%
   filter(state=="Connecticut")%>%
 ggplot() + 
-  geom_boxplot(aes(x=as.Date(date), y=cases, group = interaction(date, caseType), fill=factor(caseType)), color = "light grey")+
-  # facet_geo(~state, grid=my_gird, scales="free_y")+ #wraping by state location
-    # scale_y_continuous(labels = scales::comma)+
+  geom_boxplot(aes(x=date, y=cases, group = interaction(date, caseType), fill=factor(caseType)))+
   scale_y_log10()+
-  # scale_x_continuous(limits = c())+
-  scale_fill_brewer(palette = "Spectral", drop=TRUE)+
+  scale_x_date(limits = c(as.Date("2020-02-27"), Sys.Date() - 21), name = "Date")+
+  scale_fill_brewer(palette = "Dark2", drop=TRUE, name = "Case Type")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")+
   ggtitle("calculated cases based on deaths, Just CT")
+ggsave("CTmodeledCasesCFR.jpg", width=7, height = 5)
 
 
 ```

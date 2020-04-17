@@ -10,6 +10,10 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 ---
 
+April 16, 2020
+
+Adding in global testing data from [Our world in data](https://ourworldindata.org/covid-testing). They list lots of caveats in how they have complied this data, so the numbers may change day to day more than some of the other data plotted here. 
+
 April 3, 2020
 
 NY Times has released their state and county level date. I will get that data in over the weekend.
@@ -39,6 +43,8 @@ First, I need to set up my R session by installing and loading packages.
 # devtools::install_github("UrbanInstitute/urbnmapr") # had to uninstall the *program Rtools* and download/install the new version to get this to work
 # install.packages("transformr")
 # install.packages("tweenr")
+# install.packages("rnaturalearth")
+# install.packages("rnaturalearthdata")
 
 library(ggplot2)
 library(tidyverse)
@@ -50,6 +56,9 @@ library(urbnmapr)
 library(transformr)
 library(tweenr)
 library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
 
 ```
 ## Global data gathered by Johns Hopkins CSSE 
@@ -59,9 +68,9 @@ Now let's fetch the data, currently it looks like the data is updated every even
 
 ```{r JohnsHopkins, warning = FALSE, message=FALSE}
 covid19cases <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv", header=TRUE)
-tibble(covid19cases)
+# tibble(covid19cases)
 covid19deaths <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv", header=TRUE)
-tibble(covid19deaths)
+# tibble(covid19deaths)
 ```
 
 ### Tidy Johns Hopkins data
@@ -80,13 +89,13 @@ cases <- covid19cases %>%
                 names_to = "date", # variable name for the variables column
                 names_prefix = "X", # let's get rid of the "X" so we can treat dates as dates
                 values_to = "confirmedCases") # variable name for the column that will hold the values
-tibble(cases)
+# tibble(cases)
 deaths <- covid19deaths %>%
   pivot_longer( cols = starts_with("X"),
                 names_to = "date", 
                 names_prefix = "X",
                 values_to = "deaths")
-tibble(deaths)
+# tibble(deaths)
 ```
 #### Merge the cases and deaths datasets
 
@@ -97,9 +106,9 @@ cases$join <- paste(cases$Province.State, cases$Country.Region ,cases$Lat, cases
 
 deaths$join <- paste(deaths$Province.State, deaths$Country.Region,deaths$Lat, deaths$Long, deaths$date)
 
-tibble(cases)
-
-tibble(deaths)
+# tibble(cases)
+# 
+# tibble(deaths)
 
 covid19 <- cases %>%
   select(join, confirmedCases) %>%
@@ -199,12 +208,13 @@ usCanada <- covid19 %>%
 Write this daily data to a csv for Kid1 to open and paste into excel because he isn't interested in learning R yet.
 
 ```{r USCanadaCSV, warning = FALSE, message=FALSE}
-write.csv(usCanada, file=paste0("usCanadaDaily", format(Sys.Date(),"%B%d"),".csv"))
+# write.csv(usCanada, file=paste0("usCanadaDaily", format(Sys.Date(),"%B%d"),".csv"))
 
 
 ```
 
-I can't help but make a graph for him as well, because seeing data is fundimental to understanding the numbers
+I can't help but make a graph for him as well, because seeing data is fundimental to understanding the numbers. Roughly March 20, when I started doing this, the US and Canada were on roughly the same curve with Canada a week or so behind. Since then, Canada has clearly done a better job in controlling the spread than the US.
+
 ```{r USCanadaScatter, warning = FALSE, message=FALSE}
 ggplot(usCanada, aes(x=date, y=confirmedCases, color=Country.Region))+
     scale_y_continuous(labels = scales::comma)+
@@ -809,7 +819,7 @@ ggsave("estCasesByState.jpg", width = 20, height = 12)
 This map/graph shows official, detected cases in black. Then I used deaths to calculate cases in the past using 3 different case fatality rates (1% Diamond Princess, 3% China, 7% Spain/Italy). Since it take people ~3 weeks to die from Covid19, we can calculate back that for every death today, there were 100 or 33 or 14 cases 3 weeks ago depending on what CFR we use. I"m sure there is a much better way to display this.
 
 
-```{r mapPredictedTime}
+```{r mapPredictedTime, warning = FALSE, message=FALSE, message=FALSE}
 
 pastCases <- nytcounty %>%
   select(county, state, fips, pastCasesDate, pastCasesCFR01, pastCasesCFR03, pastCasesCFR07) %>%
@@ -840,6 +850,79 @@ ggplot() +
   theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")+
   ggtitle("calculated cases based on deaths, Just CT")
 ggsave("CTmodeledCasesCFR.jpg", width=7, height = 5)
+
+
+```
+
+## Testing data from OurWorldInData
+
+
+```{r globalTesting, warning = FALSE, message=FALSE, message=FALSE}
+
+globalTesting <- read.csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/testing/covid-testing-all-observations.csv", stringsAsFactors = FALSE, header=TRUE)
+
+globalTesting <- globalTesting %>%
+  separate(Entity, c("Country", "type"), sep = " - ")
+
+# fix US name
+
+globalTesting$Country <- recode(globalTesting$Country, 
+                                "United States" = "United States of America")
+
+
+world <- ne_countries(scale = "small", returnclass = "sf")
+
+# the order of the join matters, geom_sf can't find the geometry if world is the second data frame
+
+worldTesting <- left_join( world, globalTesting, by = c( "sovereignt" = "Country" ))
+
+worldTesting$Date <- as.Date(worldTesting$Date)
+
+ggplot(data = worldTesting)+
+
+  geom_sf(data = worldTesting, aes(fill = Cumulative.total.per.thousand))+
+  # coord_sf(crs = st_crs(worldTesting))+
+  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 30), na.value = "white", name="Tests per capita")+
+  geom_sf(data =subset(worldTesting, Cumulative.total.per.thousand > 30), fill = "Black")+  
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  ggtitle("Cumulative testing per 1000")
+ggsave("globalTestingPer1000.jpg", width = 15, height = 10)
+
+# worldTesting <- worldTesting %>%
+   # filter(!is.na(Cumulative.total.per.thousand))
+
+
+# anim <- ggplot(data = worldTesting)+
+#   geom_sf(data = worldTesting, aes(fill = Cumulative.total.per.thousand))+
+#   # coord_sf(crs = st_crs(worldTesting))+
+#   scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 30), na.value = "white", name="Tests per capita")+
+#   geom_sf(data =subset(worldTesting, Cumulative.total.per.thousand > 30), fill = "Black")+  
+#   theme_bw()+
+#   theme(legend.position = "bottom")+
+#   transition_time(time=Date)+
+#   ggtitle('Now showing {frame_time}')
+# animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
+
+```
+
+## Global positive rate
+
+The positive test rate gives an indication of how well a community is being sampled
+
+```{r globalPosRate, warning = FALSE, message=FALSE, message=FALSE}
+
+# todayscovid19 <- covid19 %>%
+#     filter(date==max(date))
+# 
+# todayscovid19$Country.Region <- recode(todayscovid19$Country.Region,
+#                                        "Korea, South" = "South Korea",
+#                                        "US" = "United States of America")
+# 
+# todaysWorldTesting <- worldTesting %>%
+#   filter(date==max(Date))
+  
+
 
 
 ```

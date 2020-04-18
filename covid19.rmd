@@ -384,6 +384,7 @@ ggplot(usDaily, aes(x=date, y=posRate))+
   scale_y_continuous(labels = scales::comma)+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Positive test rate by state")
+ggsave("DailyPosRate.jpg", width = 8, height=5)
 
 
 ```

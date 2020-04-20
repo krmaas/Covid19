@@ -10,6 +10,11 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 ---
 
+April 18, 2020
+
+Adding a shiny app for selecting one state's data. PENDING
+
+
 April 16, 2020
 
 Adding in global testing data from [Our world in data](https://ourworldindata.org/covid-testing). They list lots of caveats in how they have complied this data, so the numbers may change day to day more than some of the other data plotted here. 
@@ -188,6 +193,23 @@ anim_save(filename="casesDeathsPerCapita.gif", animation=last_animation())
 
 ```
 
+### Case Fatality Rate
+
+```{r GlobalCFR, warning = FALSE, message=FALSE}
+
+ggplot(covid19, aes(x=date, y=deaths/confirmedCases, color = continent))+
+  # geom_path()+
+  geom_point()+
+  ylim(0, 0.5)+
+  scale_color_brewer(palette = "Set1")+
+  transition_time( date)
+  # + shadow_trail()
+  
+    transition_reveal(date)
+
+
+
+```
 
 #### Kid1 summary data for the US and Canada
 
@@ -574,14 +596,50 @@ usDaily %>%
 There was a big spike in positive rate March 18, which means they were only testing people who were likley sick. If we look at total tests administered, there's been a significant increase in testing since then. But our positive test result (and statements from state public health) tell us that we are still under testing.
 
 ```{r covidProjectCTtests, warning = FALSE, message=FALSE}
-usDaily %>%
+usDailyIncrease %>%
   filter(state == "CT") %>%
-  ggplot(aes(x=date, y=total))+
+  ggplot(aes(x=date, y=totalTestResultsIncrease))+
   geom_line()+
   theme_bw()+
-  ggtitle("CT test administered")
+  ggtitle("CT test administered each day")
 ```
 
+
+### For Linda. How is MI doing?
+
+```{r covidProjectMI, warning = FALSE, message=FALSE}
+usDailyLongNoTotal %>%
+  filter(state == "MI") %>%
+ggplot()+
+  geom_bar(stat="identity", aes(x=date, y=count,fill=testType))+
+  scale_fill_manual(values=testType.col)+
+  # scale_y_log10()+
+  theme_classic()+
+  ggtitle("MI outcome of tests")
+ggsave(file=paste0("miTestOutCome", format(Sys.Date(), "%B%d"), ".jpg"))
+
+usDaily %>%
+  filter(state == "MI") %>%
+  ggplot(aes(x=date, y=posRate))+
+  geom_line()+
+  theme_bw()+
+  ggtitle("MI positive test rate")
+ggsave(file=paste0("miPosRate", format(Sys.Date(), "%B%d"), ".jpg"))
+
+```
+
+
+
+```{r covidProjectMItests, warning = FALSE, message=FALSE}
+usDailyIncrease %>%
+  filter(state == "MI") %>%
+  ggplot(aes(x=date, y=totalTestResultsIncrease))+
+  geom_line()+
+  theme_bw()+
+  ggtitle("MI test administered each day")
+ggsave(file=paste0("miDailyTests", format(Sys.Date(), "%B%d"), ".jpg"))
+
+```
 
 ## NY Times county data
 New York Times has released their data on US cases at the county level.
@@ -767,6 +825,47 @@ animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
 anim_save(filename="mapCasesPerCapCounty.gif", animation=last_animation())
 
 ```
+
+```{r mapCasesAnimateCT, warning = FALSE, message=FALSE }
+anim <- nytcountypop %>%
+  filter(state_abbv == "CT") %>%
+  filter(!is.na(casesPerCap)) %>%
+  ggplot(aes(long, lat, group= fips))+
+  geom_polygon(aes(fill=casesPerCap))+
+  geom_polygon(data = subset(states, state_abbv == "CT"), mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
+  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 10))+
+  coord_map(projection = "albers", lat0 = 40, lat1=42)+
+  labs(fill="Cases per capita")+
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  transition_time(time=date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
+```
+
+
+```{r mapCasesAnimateMI, warning = FALSE, message=FALSE }
+anim <- nytcountypop %>%
+  filter(state_abbv == "MI") %>%
+  filter(!is.na(casesPerCap)) %>%
+  ggplot(aes(long, lat, group= fips))+
+  geom_polygon(aes(fill=casesPerCap))+
+  geom_polygon(data = subset(states, state_abbv == "MI"), mapping = aes(long, lat, group = group), fill = NA, color = "light grey") +
+  scale_fill_viridis_c(option = "inferno",direction = -1, limits = c(0, 10))+
+  coord_map(projection = "albers", lat0 = 40, lat1=42)+
+  labs(fill="Cases per capita")+
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  transition_time(time=date)+
+    ggtitle('Now showing {frame_time}')
+animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
+
+anim_save(filename="mapCasesPerCapCountyMI.gif", animation=last_animation())
+
+```
+
+
+
 
 ```{r mapDeathAnimate, warning = FALSE, message=FALSE}
 

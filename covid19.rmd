@@ -624,7 +624,7 @@ usDaily %>%
   geom_line()+
   theme_bw()+
   ggtitle("MI positive test rate")
-ggsave(file=paste0("miPosRate", format(Sys.Date(), "%B%d"), ".jpg"))
+# ggsave(file=paste0("miPosRate", format(Sys.Date(), "%B%d"), ".jpg"))
 
 ```
 
@@ -637,7 +637,7 @@ usDailyIncrease %>%
   geom_line()+
   theme_bw()+
   ggtitle("MI test administered each day")
-ggsave(file=paste0("miDailyTests", format(Sys.Date(), "%B%d"), ".jpg"))
+# ggsave(file=paste0("miDailyTests", format(Sys.Date(), "%B%d"), ".jpg"))
 
 ```
 
@@ -860,7 +860,7 @@ anim <- nytcountypop %>%
     ggtitle('Now showing {frame_time}')
 animate(anim, renderer = gifski_renderer(), end_pause = 20, fps = 5)
 
-anim_save(filename="mapCasesPerCapCountyMI.gif", animation=last_animation())
+# anim_save(filename="mapCasesPerCapCountyMI.gif", animation=last_animation())
 
 ```
 

@@ -207,7 +207,7 @@ ggplot(covid19, aes(x=date, y=deaths/confirmedCases, color = continent))+
   transition_time( date)
   # + shadow_trail()
   
-    transition_reveal(date)
+    # transition_reveal(date)
 
 
 

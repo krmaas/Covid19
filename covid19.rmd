@@ -542,6 +542,15 @@ usIncPop <- left_join(usDailyIncrease, usPop, by=c("state" = "Abbreviation")) %>
             testsPerCap = (totalTestResultsIncrease*1000)/POPESTIMATE2019)
 
 
+ggplot(usIncPop, aes(x=date, y=testsPerCap))+
+  geom_line()+
+  # facet_wrap(~state)+ #wraping by state name
+ facet_geo(~state, grid=my_gird)+ #wraping by state location
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
+  ggtitle("Daily tests per 1000 by state")
+ggsave("DailyTestsPerCapitaState.jpg", width=10, height=8)
+
 
 ggplot(usIncPop, aes(x=date, y=positivePerCap))+
   geom_line()+
@@ -551,15 +560,6 @@ ggplot(usIncPop, aes(x=date, y=positivePerCap))+
   theme(axis.text.x = element_text(angle = 60, hjust = 1))+
   ggtitle("Daily positive test per 1000 by state")
 ggsave("DailyPosPerCapitaState.jpg", width=10, height=8)
-
-ggplot(usIncPop, aes(x=date, y=testsPerCap))+
-  geom_line()+
-  # facet_wrap(~state)+ #wraping by state name
- facet_geo(~state, grid=my_gird)+ #wraping by state location
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 60, hjust = 1))+
-  ggtitle("Daily tests per 1000 by state")
-ggsave("DailyTestsPerCapitaState.jpg", width=10, height=8)
 
 ggplot(usIncPop, aes(x=date, y=deathPerCap))+
   geom_line()+
